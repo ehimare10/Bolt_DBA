@@ -1,0 +1,181 @@
+create file resize.sh
+
+
+#!/bin/bash
+2
+3hugo
+4
+5git add .
+6
+7git commit -m "Updates"
+8
+9git push
+
+
+sudo fdisk -l
+
+Step 2: Partition the external storage device
+$ sudo parted /dev/sdb
+$ mklabel gpt
+$ mkpart primary 0GB 100GB
+$ quit
+
+########The final step to active the partition is assigning file for new partition; so, you have to choose the file system (.ext4) of the newly made partition by using the below-mentioned command:
+
+$ sudo mkfs.ext4 /dev/sdb
+
+Step 3: Mount Process
+$ sudo mkdir /mnt/sdb
+
+Once the directory is created, mount the inserted drive, using the command below:
+
+$ sudo mount /dev/sdb /mnt/sdb
+
+this is to permanentlt mout the drive
+$ sudo nano /etc/fstab
+
+$ sudo resize2fs /dev/sda1
+
+#you already have the empty space ready to be merged. Afterwards reboot for the changes to take effect correctly. The command above would resize to the maximum permitted. If you wish to resize to a particular size then simply add the size at the end:
+
+#sudo resize2fs /dev/sda1 25G
+
+#NB you can as well make use of the graphical user interface (GUI)
+
+
+
+#Task 2
+
+#I am using mysql/mysql-server:8.0:
+#Provision 3 Severs
+#for each install mysql/mysql-server:8.0 using this Scripsts as follows:
+
+$ apt install docker.io
+
+$ docker pull mysql/mysql-server:8.0
+
+$ docker images
+
+#Creating Docker Network
+
+$ docker network create groupnet
+
+#Creating 3 Docker Nodes Mysql
+
+for N in 1 2 3
+do docker run -d --name=node$N --net=groupnet --hostname=node$N \
+  -v $PWD/d$N:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=mypass \
+  mysql/mysql-server:8.0 \
+  --server-id=$N \
+  --log-bin='mysql-bin-1.log' \
+  --enforce-gtid-consistency='ON' \
+  --log-slave-updates='ON' \
+  --gtid-mode='ON' \
+  --transaction-write-set-extraction='XXHASH64' \
+  --binlog-checksum='NONE' \
+  --master-info-repository='TABLE' \
+  --relay-log-info-repository='TABLE' \
+  --plugin-load='group_replication.so' \
+  --relay-log-recovery='ON' \
+  --group-replication-start-on-boot='OFF' \
+  --group-replication-group-name='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' \
+  --group-replication-local-address="node$N:33061" \
+  --group-replication-group-seeds='node1:33061,node2:33061,node3:33061' \
+  --loose-group-replication-single-primary-mode='ON' and 'OFF' \
+  --loose-group-replication-enforce-update-everywhere-checks='ON'and 'OFF'
+done
+
+#this script contained named node1, 2 and 3
+t#o see whether the containers are started by running 
+
+
+$ docker ps -a
+$ docker logs node1
+
+
+######## Setting up and starting GR in the containers ##########
+
+docker exec -it node1 mysql -uroot -pmypass \
+  -e "SET @@GLOBAL.group_replication_bootstrap_group=1;" \
+  -e "create user 'repl'@'%';" \
+  -e "GRANT REPLICATION SLAVE ON *.* TO repl@'%';" \
+  -e "flush privileges;" \
+  -e "change master to master_user='repl' for channel 'group_replication_recovery';" \
+  -e "START GROUP_REPLICATION;" \
+  -e "SET @@GLOBAL.group_replication_bootstrap_group=0;" \
+  -e "SELECT * FROM performance_schema.replication_group_members;"
+
+############## for node 2 and 3 ############
+
+for N in 2 3
+do docker exec -it node$N mysql -uroot -pmypass \
+  -e "change master to master_user='repl' for channel 'group_replication_recovery';" \
+  -e "START GROUP_REPLICATION;"
+done
+
+########## check for performance schema tables to moitor ##########
+
+docker exec -it node1 mysql -uroot -pmypass \
+  -e "SELECT * FROM performance_schema.replication_group_members;"
+
+###### to test that replication is working ##############
+
+
+#Task 3
+
+CREATE TABLE t
+(
+  a int PRIMARY KEY AUTO_INCREMENT,
+  b timestamp NOT NULL DEFAULT NOW(),
+  c int NOT NULL );
+
+
+CREATE TABLE t1 LIKE original_table; INSERT INTO t1 SELECT * FROM original_table where b =sysdate; 
+
+CREATE TABLE t2 LIKE original_table; INSERT INTO t2 SELECT * FROM original_table where b = sysdate;
+
+
+DECLARE @7daysago datetime
+SELECT @7daysago = DATEADD(b, -7, GetDate());
+SET IDENTITY_INSERT [dbo].[Archived Data Import] ON;
+
+WITH CTE as (
+    SELECT TOP 10000 *
+    FROM [dbo].[Data Import] 
+    WHERE [Data Import].[Receive Date] < @7daysago)
+DELETE CTE
+  OUTPUT DELETED.a, DELTED.b, DELETED.c, ... 
+  INTO  [dbo].[Archived Data Import] (a, b, c);
+
+#Without downtime i advisable i achieve every seven days of Data, should incase if needed i can reference to t1 or a job can also be runing periodically to exec. such task.
+
+
+#Task 4
+
+<?php
+$servername = localhost;
+$username = root;
+$password = root;
+
+// Create connection
+$conn = new mysql($localhost, $root, $root);
+
+// Check connection
+if ($conn->connect_error) {
+  die("Connection failed: " . $conn->connect_error);
+}
+echo "Connected successfully";
+
+// Attempt select query execution
+$sql = "Select coun(1) from information_schema.processlist where command <>'Sleep'";
+
+if(mysqli_query($link, $sql)){
+    echo "Records were Active.";
+} else{
+    echo "ERROR: Could not able to execute $sql. " . mysqli_error($link);
+}
+ 
+// Close connection
+mysqli_close($link);
+
+?>
